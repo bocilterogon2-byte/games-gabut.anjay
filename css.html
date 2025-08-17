@@ -1,0 +1,296 @@
+<!DOCTYPE html><html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <title>Teka‑Teki Geser – JS</title>
+  <style>
+    :root{
+      --bg:#0f172a;          /* slate-900 */
+      --panel:#111827;       /* gray-900 */
+      --tile:#1f2937;        /* gray-800 */
+      --tileText:#e5e7eb;    /* gray-200 */
+      --accent:#34d399;      /* emerald-400 */
+      --danger:#f87171;      /* red-400 */
+      --muted:#94a3b8;       /* slate-400 */
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu; background:linear-gradient(180deg,#0b1220,#0f172a 30%);
+      color:#e2e8f0; min-height:100svh; display:flex; align-items:center; justify-content:center; padding:16px;
+    }
+    .app{ width:min(520px, 100%); }
+    header{ text-align:center; margin-bottom:12px; }
+    h1{ font-size:1.4rem; margin:0 0 6px; letter-spacing:.5px; }
+    .sub{ color:var(--muted); font-size:.9rem }.card{ background:var(--panel); border:1px solid rgba(255,255,255,.06); border-radius:16px; padding:14px; box-shadow:0 8px 30px rgba(0,0,0,.35)}
+
+.controls{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:space-between; margin-bottom:12px }
+.left, .right{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+
+select, button, .chip{
+  background:#0b1220; color:#e5e7eb; border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px 12px; font-size:14px;
+}
+button{ cursor:pointer; transition:transform .08s ease, background .2s ease }
+button:active{ transform:translateY(1px) }
+.primary{ background:var(--accent); color:#052e2b; border-color:transparent; font-weight:700 }
+.danger{ background:var(--danger); color:#2b0b0b; border-color:transparent; font-weight:700 }
+
+.stats{ display:flex; gap:8px; }
+.chip{ display:inline-flex; align-items:center; gap:6px; }
+.dot{ width:8px; height:8px; border-radius:999px; background:var(--accent) }
+
+.board-wrap{ position:relative; }
+.board{ 
+  --size:4; /* default 4x4 */
+  display:grid; grid-template-columns:repeat(var(--size), 1fr); grid-auto-rows:1fr; gap:8px; aspect-ratio:1/1;
+  background:#0b1220; padding:8px; border-radius:14px; border:1px dashed rgba(148,163,184,.25);
+}
+
+.tile{ 
+  display:flex; align-items:center; justify-content:center; font-weight:800; font-size:clamp(20px, 8.5vw, 34px);
+  user-select:none; border-radius:12px; background:var(--tile); color:var(--tileText); box-shadow:0 4px 12px rgba(0,0,0,.35);
+  transition: transform .12s ease, background .2s ease, box-shadow .2s ease;
+  touch-action:manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.tile:active{ transform:scale(.985) }
+.tile.hint{ outline:2px dashed rgba(52,211,153,.45); outline-offset:-4px }
+.empty{ background:transparent; border:1px dashed rgba(148,163,184,.25); box-shadow:none }
+
+.footer{ display:flex; justify-content:space-between; align-items:center; margin-top:12px; color:var(--muted); font-size:.9rem }
+.toggle{ display:inline-flex; align-items:center; gap:8px; cursor:pointer; }
+.toggle input{ appearance:none; width:44px; height:26px; border-radius:20px; background:#0b1220; border:1px solid rgba(255,255,255,.1); position:relative; outline:none; transition:background .2s ease }
+.toggle input:checked{ background:var(--accent) }
+.toggle input::after{ content:""; position:absolute; inset:3px; width:20px; height:20px; background:#fff; border-radius:999px; transform:translateX(0); transition:transform .2s ease }
+.toggle input:checked::after{ transform:translateX(18px) }
+
+dialog{ border:none; border-radius:16px; padding:0; width:min(420px,90vw); overflow:hidden; background:var(--panel); color:#e5e7eb }
+.modal{ padding:18px }
+.modal h2{ margin:0 0 6px }
+.modal p{ color:var(--muted) }
+.modal .row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:14px }
+
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>🧩 Teka‑Teki Geser</h1>
+      <div class="sub">Game puzzle angka sederhana, cocok untuk HP. Susun urutan 1 → N.</div>
+    </header><div class="card">
+  <div class="controls">
+    <div class="left">
+      <label>
+        <span style="font-size:.85rem;color:var(--muted)">Ukuran</span><br>
+        <select id="sizeSelect" aria-label="Pilih ukuran papan">
+          <option value="3">3 × 3 (mudah)</option>
+          <option value="4" selected>4 × 4 (standar)</option>
+          <option value="5">5 × 5 (susah)</option>
+        </select>
+      </label>
+      <button id="newGame" class="primary" aria-label="Mulai permainan baru">🔀 Acak & Mulai</button>
+      <button id="reset" class="" aria-label="Reset ke susunan awal">↺ Reset</button>
+    </div>
+    <div class="right">
+      <div class="stats">
+        <span class="chip" id="movesChip"><span class="dot"></span><strong id="moves">0</strong>&nbsp;langkah</span>
+        <span class="chip" id="timeChip">⏱️ <strong id="time">00:00</strong></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="board-wrap">
+    <div id="board" class="board" role="grid" aria-label="Papan teka-teki"></div>
+  </div>
+
+  <div class="footer">
+    <label class="toggle"><input type="checkbox" id="hintToggle"/> Tampilkan petunjuk angka</label>
+    <span>Ketuk ubin di samping ruang kosong untuk memindahkan.</span>
+  </div>
+</div>
+
+  </div>  <dialog id="winDialog">
+    <div class="modal">
+      <h2>✨ Mantap! Kamu menang!</h2>
+      <p>Waktu: <strong id="finalTime">00:00</strong> • Langkah: <strong id="finalMoves">0</strong></p>
+      <div class="row">
+        <button class="primary" id="playAgain">Main Lagi</button>
+        <button class="" id="closeModal">Tutup</button>
+        <button class="danger" id="shareBtn">Bagikan</button>
+      </div>
+    </div>
+  </dialog>  <script>
+    // === Util: format detik -> mm:ss ===
+    const fmt = s => {
+      const m = Math.floor(s/60).toString().padStart(2,'0');
+      const ss = (s%60).toString().padStart(2,'0');
+      return `${m}:${ss}`;
+    };
+
+    // === Elemen DOM ===
+    const boardEl = document.getElementById('board');
+    const sizeSelect = document.getElementById('sizeSelect');
+    const newBtn = document.getElementById('newGame');
+    const resetBtn = document.getElementById('reset');
+    const hintToggle = document.getElementById('hintToggle');
+    const movesEl = document.getElementById('moves');
+    const timeEl = document.getElementById('time');
+    const winDialog = document.getElementById('winDialog');
+    const finalTime = document.getElementById('finalTime');
+    const finalMoves = document.getElementById('finalMoves');
+    const playAgain = document.getElementById('playAgain');
+    const closeModal = document.getElementById('closeModal');
+    const shareBtn = document.getElementById('shareBtn');
+
+    // === State ===
+    let size = parseInt(sizeSelect.value,10);
+    let arr = [];      // linear tiles (0 = kosong)
+    let startArr = []; // susunan saat mulai, untuk reset
+    let moves = 0;
+    let secs = 0;
+    let timer = null;
+
+    function goalArray(n){
+      return Array.from({length:n*n}, (_,i)=> i===n*n-1 ? 0 : i+1);
+    }
+
+    // === Init ===
+    function initBoard(n){
+      size = n; boardEl.style.setProperty('--size', n);
+      arr = goalArray(n);
+      startArr = arr.slice();
+      render();
+      updateStats(0, 0);
+      stopTimer();
+    }
+
+    function updateStats(m, s){
+      if(m!==undefined){ moves = m; movesEl.textContent = m; }
+      if(s!==undefined){ secs = s; timeEl.textContent = fmt(secs); }
+    }
+
+    function startTimer(){ if(timer) return; timer = setInterval(()=>{ secs++; timeEl.textContent = fmt(secs); },1000); }
+    function stopTimer(){ if(timer){ clearInterval(timer); timer = null; } }
+
+    // === Render ===
+    function render(){
+      boardEl.innerHTML = '';
+      boardEl.setAttribute('aria-rowcount', size);
+      boardEl.setAttribute('aria-colcount', size);
+      arr.forEach((v, idx)=>{
+        const tile = document.createElement('button');
+        tile.className = 'tile' + (v===0 ? ' empty' : '');
+        tile.setAttribute('role','gridcell');
+        tile.setAttribute('aria-label', v===0? 'kosong' : 'angka ' + v);
+        tile.dataset.index = idx;
+        tile.disabled = v===0;
+        if(v!==0){ tile.textContent = v; }
+        if(hintToggle.checked && v!==0){ tile.classList.add('hint'); }
+        tile.addEventListener('click', onTileClick, {passive:true});
+        attachSwipe(tile);
+        boardEl.appendChild(tile);
+      });
+    }
+
+    // === Interaksi ===
+    function onTileClick(e){
+      const idx = parseInt(e.currentTarget.dataset.index,10);
+      const empty = arr.indexOf(0);
+      if(isAdjacent(idx, empty)){
+        swap(idx, empty);
+        updateStats(moves+1, secs);
+        if(!timer) startTimer();
+        render();
+        if(isSolved()) onWin();
+      }
+    }
+
+    function attachSwipe(el){
+      let sx=0, sy=0, t=0;
+      el.addEventListener('touchstart', e=>{ const p=e.touches[0]; sx=p.clientX; sy=p.clientY; t=Date.now(); }, {passive:true});
+      el.addEventListener('touchend', e=>{
+        const dt = Date.now()-t; if(dt>250) return; // cepat saja
+        const idx = parseInt(el.dataset.index,10);
+        const empty = arr.indexOf(0);
+        if(isAdjacent(idx, empty)){
+          swap(idx, empty); updateStats(moves+1, secs); if(!timer) startTimer(); render(); if(isSolved()) onWin();
+        }
+      }, {passive:true});
+    }
+
+    function isAdjacent(a, b){
+      const ra=Math.floor(a/size), ca=a%size;
+      const rb=Math.floor(b/size), cb=b%size;
+      const dr=Math.abs(ra-rb), dc=Math.abs(ca-cb);
+      return (dr+dc)===1; // bersebelahan
+    }
+
+    function swap(i,j){ const t=arr[i]; arr[i]=arr[j]; arr[j]=t; }
+
+    function isSolved(){
+      for(let i=0;i<arr.length-1;i++){ if(arr[i]!==i+1) return false; }
+      return arr[arr.length-1]===0;
+    }
+
+    // === Shuffle (selalu solvable) ===
+    function shuffleSolvable(){
+      const n=size; const total=n*n;
+      do{
+        arr = Array.from({length:total}, (_,i)=>i);
+        // Fisher-Yates
+        for(let i=total-1;i>0;i--){ const j=(Math.random()* (i+1))|0; [arr[i],arr[j]]=[arr[j],arr[i]]; }
+      } while(!isSolvable(arr, n) || isSolved());
+      startArr = arr.slice();
+    }
+
+    function countInversions(a){
+      const nums = a.filter(v=>v!==0);
+      let inv=0; for(let i=0;i<nums.length;i++){ for(let j=i+1;j<nums.length;j++){ if(nums[i]>nums[j]) inv++; } }
+      return inv;
+    }
+
+    function isSolvable(a, n){
+      const inv = countInversions(a);
+      if(n%2===1){ // lebar ganjil
+        return inv%2===0;
+      } else { // lebar genap
+        const blankIndex = a.indexOf(0);
+        const blankRowFromTop = Math.floor(blankIndex/n);
+        const blankRowFromBottom = n - blankRowFromTop; // 1-based
+        const blankEven = (blankRowFromBottom % 2) === 0;
+        // Aturan: jika blank di baris genap dari bawah, inversi harus ganjil, sebaliknya genap
+        return (blankEven && inv%2===1) || (!blankEven && inv%2===0);
+      }
+    }
+
+    // === Menang ===
+    function onWin(){
+      stopTimer();
+      finalTime.textContent = fmt(secs);
+      finalMoves.textContent = moves;
+      try{ winDialog.showModal(); }catch{ winDialog.setAttribute('open',''); }
+    }
+
+    // === Events UI ===
+    sizeSelect.addEventListener('change', ()=>{ initBoard(parseInt(sizeSelect.value,10)); });
+
+    newBtn.addEventListener('click', ()=>{
+      updateStats(0,0); stopTimer(); shuffleSolvable(); render();
+    });
+
+    resetBtn.addEventListener('click', ()=>{ arr = startArr.slice(); updateStats(0,0); stopTimer(); render(); });
+
+    hintToggle.addEventListener('change', ()=> render());
+
+    playAgain.addEventListener('click', ()=>{ try{ winDialog.close(); }catch{}; newBtn.click(); });
+    closeModal.addEventListener('click', ()=>{ try{ winDialog.close(); }catch{} });
+
+    shareBtn.addEventListener('click', async ()=>{
+      const text = `Skor puzzle ${size}x${size}: ${moves} langkah • ${fmt(secs)}`;
+      if(navigator.share){ try{ await navigator.share({title:'Teka‑Teki Geser', text}); }catch{} }
+      else{ try{ await navigator.clipboard.writeText(text); alert('Skor disalin ke clipboard!'); }catch{ alert(text); } }
+    });
+
+    // Mulai
+    initBoard(size);
+  </script></body>
+</html>
